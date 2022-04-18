@@ -2,6 +2,9 @@ from typing import Optional, Sequence
 
 import torch
 from PIL import Image
+from torchvision import datasets, transforms
+from torch.utils.data import Dataset, DataLoader
+import torchvision
 
 from data2vec_vision.typing import (Data2VecSample, MaskingFn, PathLike,
                                     TransformFn)
@@ -53,3 +56,44 @@ class Data2VecDataset(torch.utils.data.Dataset):
 
     def __len__(self) -> int:
         return len(self.paths)
+
+
+
+
+class Cifar10Dataset(torch.utils.data.Dataset):
+
+    def __init__(self,
+                 masking_fn: MaskingFn,
+                 before_masking_tfms: Optional[TransformFn] = None,
+                 after_masking_tfms: Optional[TransformFn] = None) -> None:
+
+        self.dataset = torchvision.datasets.CIFAR10(
+            root='./data', 
+            train=True, 
+            download=True,
+        )
+        print("Done loading Cifar10")
+        self.before_masking_tfms = before_masking_tfms
+        self.after_masking_tfms = after_masking_tfms
+        self.masking_fn = masking_fn
+
+    def __getitem__(self, idx: int) -> Data2VecSample:
+        im, _ = self.dataset[idx]
+
+        if self.before_masking_tfms is not None:
+            im = self.before_masking_tfms(im)
+
+        masked_im, bool_mask = self.masking_fn(im)
+
+        if self.after_masking_tfms is not None:
+            masked_im = self.after_masking_tfms(masked_im)
+            im = self.after_masking_tfms(im)
+
+        return Data2VecSample(image=im,
+                              masked_image=masked_im,
+                              bool_mask=bool_mask)
+
+    def __len__(self) -> int:
+        return len(self.dataset)
+
+
