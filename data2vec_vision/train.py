@@ -6,6 +6,7 @@ from typing import Optional
 import click
 import torch
 
+from data2vec_vision.data import Cifar10Dataset
 from data2vec_vision import Data2Vec, Data2VecDataset
 from data2vec_vision.engine import tau_generator, train_single_epoch
 from data2vec_vision.transforms import PatchesToSequence, build_train_tfms
@@ -13,14 +14,13 @@ from data2vec_vision.transforms import PatchesToSequence, build_train_tfms
 
 @click.command()
 # Input data related parameters
-@click.argument("input-path", type=click.Path(file_okay=False, exists=True))
 @click.option("--image-size",
               type=int,
-              default=224,
+              default=32,
               help="Initial image size, before spliting it into patches.")
 @click.option("--patch-size",
               type=int,
-              default=16,
+              default=8,
               help="Images will be splitted in patches of this size.")
 # Training duration
 @click.option("--epochs",
@@ -84,7 +84,6 @@ from data2vec_vision.transforms import PatchesToSequence, build_train_tfms
               type=click.Path(exists=True, dir_okay=False),
               default=None)
 def train(
-    input_path: PathLike,
     image_size: int,
     patch_size: int,
     epochs: int,
@@ -113,16 +112,12 @@ def train(
     checkpoint_out_dir = Path(checkpoint_out_dir)
     checkpoint_out_dir.mkdir(exist_ok=True, parents=True)
 
-    input_path = Path(input_path)
-    paths = list(input_path.glob('*.png')) + list(input_path.glob('*.jpeg'))
-
     train_tfm, masking_fn = build_train_tfms((image_size, image_size),
                                              patch_size=patch_size,
                                              mask_erase_pct=mask_erase_pct)
-    train_ds = Data2VecDataset(paths,
-                               masking_fn=masking_fn,
-                               before_masking_tfms=train_tfm,
-                               after_masking_tfms=PatchesToSequence())
+    train_ds = Cifar10Dataset(masking_fn=masking_fn,
+                              before_masking_tfms=train_tfm,
+                              after_masking_tfms=PatchesToSequence())
 
     train_dl = torch.utils.data.DataLoader(train_ds,
                                            batch_size,
@@ -174,6 +169,7 @@ def train(
                                 increase_steps=tau_increase_steps)
         start_epoch = 0
 
+    print("Train start")
     for epoch in range(start_epoch, epochs):
         train_single_epoch(teacher_model,
                            student_model,
